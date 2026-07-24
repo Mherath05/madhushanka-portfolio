@@ -70,22 +70,27 @@ ALTER TABLE public.contacts ENABLE ROW LEVEL SECURITY;
 -- RLS Policies (Full Read/Write Access to allow real-time cross-browser updates)
 DROP POLICY IF EXISTS "Public Read Projects" ON public.projects;
 DROP POLICY IF EXISTS "Admin Projects Full Access" ON public.projects;
+DROP POLICY IF EXISTS "Public Full Access Projects" ON public.projects;
 CREATE POLICY "Public Full Access Projects" ON public.projects FOR ALL USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Public Read Project Images" ON public.project_images;
 DROP POLICY IF EXISTS "Admin Images Full Access" ON public.project_images;
+DROP POLICY IF EXISTS "Public Full Access Project Images" ON public.project_images;
 CREATE POLICY "Public Full Access Project Images" ON public.project_images FOR ALL USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Public Read Skills" ON public.skills;
 DROP POLICY IF EXISTS "Admin Skills Full Access" ON public.skills;
+DROP POLICY IF EXISTS "Public Full Access Skills" ON public.skills;
 CREATE POLICY "Public Full Access Skills" ON public.skills FOR ALL USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Public Read Experiences" ON public.experiences;
 DROP POLICY IF EXISTS "Admin Experiences Full Access" ON public.experiences;
+DROP POLICY IF EXISTS "Public Full Access Experiences" ON public.experiences;
 CREATE POLICY "Public Full Access Experiences" ON public.experiences FOR ALL USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Public Insert Contacts" ON public.contacts;
 DROP POLICY IF EXISTS "Admin Contacts Read Delete" ON public.contacts;
+DROP POLICY IF EXISTS "Public Full Access Contacts" ON public.contacts;
 CREATE POLICY "Public Full Access Contacts" ON public.contacts FOR ALL USING (true) WITH CHECK (true);
 
 -- Storage Bucket Setup
@@ -96,56 +101,59 @@ ON CONFLICT (id) DO NOTHING;
 -- Storage RLS Policies
 DROP POLICY IF EXISTS "Public Read Storage" ON storage.objects;
 DROP POLICY IF EXISTS "Admin Insert Storage" ON storage.objects;
+DROP POLICY IF EXISTS "Public Storage Access" ON storage.objects;
 CREATE POLICY "Public Storage Access" ON storage.objects FOR ALL USING (bucket_id = 'portfolio-images') WITH CHECK (bucket_id = 'portfolio-images');
 
 -- SEED INITIAL DATA FOR MADHUSHANKA HERATH
 
 -- Insert Experiences
-INSERT INTO public.experiences (company, role, period, description, is_current) VALUES
-('Rabbit Solutions Pvt Ltd', 'Associate Software Engineer', 'Jan 2026 - Present', 'Developing and maintaining high-performance web and mobile applications using modern JavaScript/TypeScript stacks, optimizing backend queries, and leading feature development.', true),
-('Rabbit Solutions Pvt Ltd', 'Intern Software Engineer', 'Aug 2025 - Jan 2026', 'Engineered interactive front-end components, integrated REST APIs, developed database schemas, and assisted in mobile cross-platform app maintenance.', false);
+INSERT INTO public.experiences (id, company, role, period, description, is_current) VALUES
+('exp-1', 'Rabbit Solutions Pvt Ltd', 'Associate Software Engineer', 'Jan 2026 - Present', 'Developing and maintaining high-performance web and mobile applications using modern JavaScript/TypeScript stacks, optimizing backend queries, and leading feature development.', true),
+('exp-2', 'Rabbit Solutions Pvt Ltd', 'Intern Software Engineer', 'Aug 2025 - Jan 2026', 'Engineered interactive front-end components, integrated REST APIs, developed database schemas, and assisted in mobile cross-platform app maintenance.', false)
+ON CONFLICT (id) DO NOTHING;
 
 -- Insert Skills
-INSERT INTO public.skills (name, category, icon, proficiency) VALUES
+INSERT INTO public.skills (id, name, category, icon, proficiency) VALUES
 -- Languages
-('PHP', 'Languages', 'php', 90),
-('Java', 'Languages', 'java', 85),
-('Python', 'Languages', 'python', 88),
-('Dart', 'Languages', 'dart', 85),
-('JavaScript', 'Languages', 'js', 95),
-('TypeScript', 'Languages', 'ts', 92),
+('skl-1', 'PHP', 'Languages', 'php', 90),
+('skl-2', 'Java', 'Languages', 'java', 85),
+('skl-3', 'Python', 'Languages', 'python', 88),
+('skl-4', 'Dart', 'Languages', 'dart', 85),
+('skl-5', 'JavaScript', 'Languages', 'js', 95),
+('skl-6', 'TypeScript', 'Languages', 'ts', 92),
 
 -- Web Development
-('HTML', 'Web Development', 'html', 98),
-('CSS', 'Web Development', 'css', 95),
-('React', 'Web Development', 'react', 95),
-('Next.js', 'Web Development', 'nextjs', 92),
+('skl-7', 'HTML', 'Web Development', 'html', 98),
+('skl-8', 'CSS', 'Web Development', 'css', 95),
+('skl-9', 'React', 'Web Development', 'react', 95),
+('skl-10', 'Next.js', 'Web Development', 'nextjs', 92),
 
 -- Mobile Development
-('React Native', 'Mobile Development', 'reactnative', 90),
-('Flutter', 'Mobile Development', 'flutter', 88),
+('skl-11', 'React Native', 'Mobile Development', 'reactnative', 90),
+('skl-12', 'Flutter', 'Mobile Development', 'flutter', 88),
 
 -- Frameworks
-('React', 'Frameworks', 'react', 95),
-('Angular', 'Frameworks', 'angular', 80),
-('Next.js', 'Frameworks', 'nextjs', 92),
-('MERN', 'Frameworks', 'mern', 92),
-('Flutter', 'Frameworks', 'flutter', 88),
-('Laravel', 'Frameworks', 'laravel', 88),
-('Electron', 'Frameworks', 'electron', 85),
+('skl-13', 'React', 'Frameworks', 'react', 95),
+('skl-14', 'Angular', 'Frameworks', 'angular', 80),
+('skl-15', 'Next.js', 'Frameworks', 'nextjs', 92),
+('skl-16', 'MERN', 'Frameworks', 'mern', 92),
+('skl-17', 'Flutter', 'Frameworks', 'flutter', 88),
+('skl-18', 'Laravel', 'Frameworks', 'laravel', 88),
+('skl-19', 'Electron', 'Frameworks', 'electron', 85),
 
 -- Tools
-('Git', 'Tools', 'git', 92),
-('GitHub', 'Tools', 'github', 95),
-('VS Code', 'Tools', 'vscode', 98),
-('Android Studio', 'Tools', 'androidstudio', 85),
-('Figma', 'Tools', 'figma', 88),
+('skl-20', 'Git', 'Tools', 'git', 92),
+('skl-21', 'GitHub', 'Tools', 'github', 95),
+('skl-22', 'VS Code', 'Tools', 'vscode', 98),
+('skl-23', 'Android Studio', 'Tools', 'androidstudio', 85),
+('skl-24', 'Figma', 'Tools', 'figma', 88),
 
 -- AI Tools
-('ChatGPT', 'AI Tools', 'chatgpt', 95),
-('GitHub Copilot', 'AI Tools', 'copilot', 92),
-('Claude', 'AI Tools', 'claude', 95),
-('Gemini', 'AI Tools', 'gemini', 92);
+('skl-25', 'ChatGPT', 'AI Tools', 'chatgpt', 95),
+('skl-26', 'GitHub Copilot', 'AI Tools', 'copilot', 92),
+('skl-27', 'Claude', 'AI Tools', 'claude', 95),
+('skl-28', 'Gemini', 'AI Tools', 'gemini', 92)
+ON CONFLICT (id) DO NOTHING;
 
 -- Insert Projects
 INSERT INTO public.projects (id, title, category, description, technologies, live_url, github_url, youtube_url, is_featured) VALUES
@@ -156,4 +164,5 @@ INSERT INTO public.projects (id, title, category, description, technologies, liv
 ('55555555-5555-5555-5555-555555555555', 'Dragon Car Rent Mobile App', 'Mobile Applications', 'Cross-platform vehicle rental booking app featuring real-time vehicle availability, GPS location tracking, booking schedules, and digital receipts.', ARRAY['React Native', 'TypeScript', 'Redux', 'Node.js'], null, 'https://github.com/madhushanka/dragon-car-rent', 'https://youtube.com/watch?v=demo5', true),
 ('66666666-6666-6666-6666-666666666666', 'Village Mart Mobile App', 'Mobile Applications', 'Hyperlocal grocery and fresh produce marketplace mobile application with real-time Firebase syncing, push notifications, and live order tracking.', ARRAY['React Native', 'Firebase', 'Context API'], null, 'https://github.com/madhushanka/village-mart', 'https://youtube.com/watch?v=demo6', false),
 ('77777777-7777-7777-7777-777777777777', 'Smart Harvest Platform', 'Mobile Applications', 'AgriTech mobile and web ecosystem connecting farmers directly with markets, featuring crop analytics, harvest forecasting, and Supabase real-time DB.', ARRAY['React Native', 'Next.js', 'Supabase', 'Tailwind CSS'], null, 'https://github.com/madhushanka/smart-harvest', 'https://youtube.com/watch?v=demo7', true),
-('88888888-8888-8888-8888-888888888888', 'Medusa AI Learning Chatbot', 'Desktop Applications', 'Advanced desktop AI assistant featuring offline local LLM chat, speech recognition voice control, interactive 3D live avatar rendering, and automated PC system control.', ARRAY['Python', 'Electron', 'SQLite', 'PyTorch', 'JavaScript'], null, 'https://github.com/madhushanka/medusa-ai-desktop', 'https://youtube.com/watch?v=demo8', true);
+('88888888-8888-8888-8888-888888888888', 'Medusa AI Learning Chatbot', 'Desktop Applications', 'Advanced desktop AI assistant featuring offline local LLM chat, speech recognition voice control, interactive 3D live avatar rendering, and automated PC system control.', ARRAY['Python', 'Electron', 'SQLite', 'PyTorch', 'JavaScript'], null, 'https://github.com/madhushanka/medusa-ai-desktop', 'https://youtube.com/watch?v=demo8', true)
+ON CONFLICT (id) DO NOTHING;
