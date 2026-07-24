@@ -3,16 +3,16 @@ import { INITIAL_PROJECTS, INITIAL_SKILLS, INITIAL_EXPERIENCES } from "./initial
 import { createClient } from "@/lib/supabase/client";
 
 // Storage Keys
-const SKILLS_KEY = "portfolio_skills_v3";
-const PROJECTS_KEY = "portfolio_projects_v3";
-const EXPERIENCES_KEY = "portfolio_experiences_v3";
-const MESSAGES_KEY = "portfolio_messages_v3";
+const SKILLS_KEY = "portfolio_skills_v4";
+const PROJECTS_KEY = "portfolio_projects_v4";
+const EXPERIENCES_KEY = "portfolio_experiences_v4";
+const MESSAGES_KEY = "portfolio_messages_v4";
 
-const DELETED_SKILLS_KEY = "portfolio_deleted_skills_v3";
-const DELETED_PROJECTS_KEY = "portfolio_deleted_projects_v3";
-const DELETED_EXPERIENCES_KEY = "portfolio_deleted_experiences_v3";
+const DELETED_SKILLS_KEY = "portfolio_deleted_skills_v4";
+const DELETED_PROJECTS_KEY = "portfolio_deleted_projects_v4";
+const DELETED_EXPERIENCES_KEY = "portfolio_deleted_experiences_v4";
 
-// Helper for local deletion overrides (used when offline)
+// Helper for local deletion overrides
 function getDeletedIds(key: string): string[] {
   if (typeof window === "undefined") return [];
   try {
@@ -35,42 +35,50 @@ function addDeletedId(key: string, id: string): void {
 // --- SKILLS ---
 export async function fetchSkills(): Promise<Skill[]> {
   const deletedIds = getDeletedIds(DELETED_SKILLS_KEY);
-  let skills: Skill[] = [];
+  let cachedSkills: Skill[] = [];
+  let dbSkills: Skill[] = [];
 
-  // 1. Prioritize Live Supabase Fetch (so all browsers sync live)
+  // Read local cache first
+  if (typeof window !== "undefined") {
+    const raw = localStorage.getItem(SKILLS_KEY);
+    if (raw) {
+      try {
+        cachedSkills = JSON.parse(raw);
+      } catch (e) {}
+    }
+  }
+
+  // Fetch Supabase live data
   try {
     const supabase = createClient();
     if (supabase) {
       const { data, error } = await supabase.from("skills").select("*").order("category");
       if (!error && data && data.length > 0) {
-        skills = data as Skill[];
-        if (typeof window !== "undefined") {
-          localStorage.setItem(SKILLS_KEY, JSON.stringify(skills));
-        }
+        dbSkills = data as Skill[];
       }
     }
   } catch (err) {
     console.error("Supabase skills fetch notice:", err);
   }
 
-  // 2. Fallback to LocalStorage cache if Supabase is offline or empty
-  if (skills.length === 0 && typeof window !== "undefined") {
-    const cached = localStorage.getItem(SKILLS_KEY);
-    if (cached) {
-      try {
-        skills = JSON.parse(cached);
-      } catch (e) {}
-    }
+  // Merge logic: start with dbSkills, overlay cached edits/additions
+  let merged: Skill[] = [];
+  if (dbSkills.length > 0) {
+    const map = new Map<string, Skill>();
+    dbSkills.forEach((s) => map.set(s.id, s));
+    cachedSkills.forEach((s) => map.set(s.id, s)); // Local edits take priority
+    merged = Array.from(map.values());
+  } else if (cachedSkills.length > 0) {
+    merged = cachedSkills;
+  } else {
+    merged = INITIAL_SKILLS;
   }
 
-  // 3. Fallback to Initial Seed Data
-  if (skills.length === 0) {
-    skills = INITIAL_SKILLS;
+  const clean = merged.filter((s) => !deletedIds.includes(s.id));
+  if (typeof window !== "undefined") {
+    localStorage.setItem(SKILLS_KEY, JSON.stringify(clean));
   }
-
-  // Filter out any locally deleted IDs and return
-  const cleanSkills = skills.filter((s) => !deletedIds.includes(s.id));
-  return cleanSkills;
+  return clean;
 }
 
 export async function persistSkills(skills: Skill[]): Promise<void> {
@@ -82,7 +90,6 @@ export async function persistSkills(skills: Skill[]): Promise<void> {
 export async function removeSkillFromDB(id: string): Promise<void> {
   addDeletedId(DELETED_SKILLS_KEY, id);
 
-  // Update local cache
   if (typeof window !== "undefined") {
     const cached = localStorage.getItem(SKILLS_KEY);
     if (cached) {
@@ -94,7 +101,6 @@ export async function removeSkillFromDB(id: string): Promise<void> {
     }
   }
 
-  // Supabase Cloud Deletion
   try {
     const supabase = createClient();
     if (supabase) {
@@ -106,83 +112,110 @@ export async function removeSkillFromDB(id: string): Promise<void> {
 }
 
 export async function upsertSkillToDB(skill: Skill): Promise<void> {
-  // 1. Supabase Cloud Upsert (Syncs globally across all browsers)
-  try {
-    const supabase = createClient();
-    if (supabase) {
-      await supabase.from("skills").upsert([skill]);
-    }
-  } catch (err) {
-    console.error("Supabase skill upsert notice:", err);
-  }
-
-  // 2. Update local cache
+  // Update local cache IMMEDIATELY so refresh never loses it
   if (typeof window !== "undefined") {
     const cached = localStorage.getItem(SKILLS_KEY);
     let list: Skill[] = cached ? JSON.parse(cached) : INITIAL_SKILLS;
     const index = list.findIndex((s) => s.id === skill.id);
     if (index >= 0) {
-      list[index] = skill;
+      list[index] = { ...list[index], ...skill };
     } else {
       list.push(skill);
     }
     localStorage.setItem(SKILLS_KEY, JSON.stringify(list));
+  }
+
+  // Supabase Cloud Upsert
+  try {
+    const supabase = createClient();
+    if (supabase) {
+      const { error } = await supabase.from("skills").upsert([skill]);
+      if (error) console.error("Supabase skill upsert warning:", error);
+    }
+  } catch (err) {
+    console.error("Supabase skill upsert notice:", err);
   }
 }
 
 // --- PROJECTS ---
 export async function fetchProjects(): Promise<Project[]> {
   const deletedIds = getDeletedIds(DELETED_PROJECTS_KEY);
-  let projects: Project[] = [];
+  let cachedProjects: Project[] = [];
+  let dbProjects: Project[] = [];
 
-  // 1. Prioritize Live Supabase Fetch (Syncs globally across all devices & browsers)
+  // 1. Read local storage cache first
+  if (typeof window !== "undefined") {
+    const raw = localStorage.getItem(PROJECTS_KEY);
+    if (raw) {
+      try {
+        cachedProjects = JSON.parse(raw);
+      } catch (e) {}
+    }
+  }
+
+  // 2. Fetch live data from Supabase DB
   try {
     const supabase = createClient();
     if (supabase) {
       const { data, error } = await supabase.from("projects").select("*").order("created_at", { ascending: false });
       if (!error && data && data.length > 0) {
-        projects = (data as Project[]).map((p) => {
-          const initialMatch = INITIAL_PROJECTS.find(
-            (ip) => ip.id === p.id || ip.title.toLowerCase() === p.title.toLowerCase()
-          );
-          const validImages =
-            p.images && Array.isArray(p.images) && p.images.length > 0
-              ? p.images
-              : initialMatch?.images && initialMatch.images.length > 0
-              ? initialMatch.images
-              : ["https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&w=1200&q=80"];
-
-          return {
-            ...p,
-            images: validImages,
-          };
-        });
-
-        if (typeof window !== "undefined") {
-          localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects));
-        }
+        dbProjects = data as Project[];
       }
     }
   } catch (err) {
     console.error("Supabase projects fetch notice:", err);
   }
 
-  // 2. Fallback to local cache if Supabase query returned no data
-  if (projects.length === 0 && typeof window !== "undefined") {
-    const cached = localStorage.getItem(PROJECTS_KEY);
-    if (cached) {
-      try {
-        projects = JSON.parse(cached);
-      } catch (e) {}
-    }
+  // 3. Intelligent Merge Algorithm
+  let finalProjects: Project[] = [];
+
+  if (dbProjects.length > 0) {
+    // Map DB projects & preserve user images from cache if DB image array was empty
+    const dbMapped = dbProjects.map((p) => {
+      const cachedMatch = cachedProjects.find((cp) => cp.id === p.id || cp.title.toLowerCase() === p.title.toLowerCase());
+      const initialMatch = INITIAL_PROJECTS.find((ip) => ip.id === p.id || ip.title.toLowerCase() === p.title.toLowerCase());
+
+      const validImages =
+        p.images && Array.isArray(p.images) && p.images.length > 0
+          ? p.images
+          : cachedMatch?.images && cachedMatch.images.length > 0
+          ? cachedMatch.images
+          : initialMatch?.images && initialMatch.images.length > 0
+          ? initialMatch.images
+          : ["https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&w=1200&q=80"];
+
+      return {
+        ...p,
+        images: validImages,
+      };
+    });
+
+    const map = new Map<string, Project>();
+    // First insert dbMapped
+    dbMapped.forEach((p) => map.set(p.id, p));
+    // Overlay local additions/edits from cachedProjects (so locally added/edited projects never vanish)
+    cachedProjects.forEach((cp) => {
+      const existing = map.get(cp.id);
+      if (existing) {
+        map.set(cp.id, { ...existing, ...cp });
+      } else {
+        map.set(cp.id, cp);
+      }
+    });
+
+    finalProjects = Array.from(map.values());
+  } else if (cachedProjects.length > 0) {
+    finalProjects = cachedProjects;
+  } else {
+    finalProjects = INITIAL_PROJECTS;
   }
 
-  // 3. Fallback to initial seed projects
-  if (projects.length === 0) {
-    projects = INITIAL_PROJECTS;
+  const cleanProjects = finalProjects.filter((p) => !deletedIds.includes(p.id));
+
+  if (typeof window !== "undefined") {
+    localStorage.setItem(PROJECTS_KEY, JSON.stringify(cleanProjects));
   }
 
-  const cleanProjects = projects.filter((p) => !deletedIds.includes(p.id));
   return cleanProjects;
 }
 
@@ -217,6 +250,20 @@ export async function removeProjectFromDB(id: string): Promise<void> {
 }
 
 export async function upsertProjectToDB(project: Project): Promise<void> {
+  // 1. Update local storage IMMEDIATELY so refresh NEVER resets user edits
+  if (typeof window !== "undefined") {
+    const cached = localStorage.getItem(PROJECTS_KEY);
+    let list: Project[] = cached ? JSON.parse(cached) : INITIAL_PROJECTS;
+    const index = list.findIndex((p) => p.id === project.id);
+    if (index >= 0) {
+      list[index] = { ...list[index], ...project };
+    } else {
+      list.unshift(project);
+    }
+    localStorage.setItem(PROJECTS_KEY, JSON.stringify(list));
+  }
+
+  // 2. Explicit payload for Supabase Cloud Database
   const payload = {
     id: project.id,
     title: project.title,
@@ -231,68 +278,63 @@ export async function upsertProjectToDB(project: Project): Promise<void> {
     updated_at: new Date().toISOString(),
   };
 
-  // 1. Supabase Cloud Upsert (Global multi-browser sync)
   try {
     const supabase = createClient();
     if (supabase) {
       const { error } = await supabase.from("projects").upsert([payload]);
       if (error) {
-        console.error("Supabase project upsert error:", error);
+        console.error("Supabase project upsert warning:", error);
       }
     }
   } catch (err) {
     console.error("Supabase project upsert notice:", err);
-  }
-
-  // 2. Update local cache
-  if (typeof window !== "undefined") {
-    const cached = localStorage.getItem(PROJECTS_KEY);
-    let list: Project[] = cached ? JSON.parse(cached) : INITIAL_PROJECTS;
-    const index = list.findIndex((p) => p.id === project.id);
-    if (index >= 0) {
-      list[index] = { ...list[index], ...project };
-    } else {
-      list.unshift(project);
-    }
-    localStorage.setItem(PROJECTS_KEY, JSON.stringify(list));
   }
 }
 
 // --- EXPERIENCES ---
 export async function fetchExperiences(): Promise<Experience[]> {
   const deletedIds = getDeletedIds(DELETED_EXPERIENCES_KEY);
-  let experiences: Experience[] = [];
+  let cachedExps: Experience[] = [];
+  let dbExps: Experience[] = [];
+
+  if (typeof window !== "undefined") {
+    const raw = localStorage.getItem(EXPERIENCES_KEY);
+    if (raw) {
+      try {
+        cachedExps = JSON.parse(raw);
+      } catch (e) {}
+    }
+  }
 
   try {
     const supabase = createClient();
     if (supabase) {
       const { data, error } = await supabase.from("experiences").select("*").order("created_at", { ascending: false });
       if (!error && data && data.length > 0) {
-        experiences = data as Experience[];
-        if (typeof window !== "undefined") {
-          localStorage.setItem(EXPERIENCES_KEY, JSON.stringify(experiences));
-        }
+        dbExps = data as Experience[];
       }
     }
   } catch (err) {
     console.error("Supabase experiences fetch notice:", err);
   }
 
-  if (experiences.length === 0 && typeof window !== "undefined") {
-    const cached = localStorage.getItem(EXPERIENCES_KEY);
-    if (cached) {
-      try {
-        experiences = JSON.parse(cached);
-      } catch (e) {}
-    }
+  let merged: Experience[] = [];
+  if (dbExps.length > 0) {
+    const map = new Map<string, Experience>();
+    dbExps.forEach((ex) => map.set(ex.id, ex));
+    cachedExps.forEach((ex) => map.set(ex.id, ex));
+    merged = Array.from(map.values());
+  } else if (cachedExps.length > 0) {
+    merged = cachedExps;
+  } else {
+    merged = INITIAL_EXPERIENCES;
   }
 
-  if (experiences.length === 0) {
-    experiences = INITIAL_EXPERIENCES;
+  const clean = merged.filter((ex) => !deletedIds.includes(ex.id));
+  if (typeof window !== "undefined") {
+    localStorage.setItem(EXPERIENCES_KEY, JSON.stringify(clean));
   }
-
-  const cleanExperiences = experiences.filter((ex) => !deletedIds.includes(ex.id));
-  return cleanExperiences;
+  return clean;
 }
 
 export async function persistExperiences(experiences: Experience[]): Promise<void> {
@@ -326,25 +368,26 @@ export async function removeExperienceFromDB(id: string): Promise<void> {
 }
 
 export async function upsertExperienceToDB(experience: Experience): Promise<void> {
-  try {
-    const supabase = createClient();
-    if (supabase) {
-      await supabase.from("experiences").upsert([experience]);
-    }
-  } catch (err) {
-    console.error("Supabase experience upsert notice:", err);
-  }
-
   if (typeof window !== "undefined") {
     const cached = localStorage.getItem(EXPERIENCES_KEY);
     let list: Experience[] = cached ? JSON.parse(cached) : INITIAL_EXPERIENCES;
     const index = list.findIndex((ex) => ex.id === experience.id);
     if (index >= 0) {
-      list[index] = experience;
+      list[index] = { ...list[index], ...experience };
     } else {
       list.unshift(experience);
     }
     localStorage.setItem(EXPERIENCES_KEY, JSON.stringify(list));
+  }
+
+  try {
+    const supabase = createClient();
+    if (supabase) {
+      const { error } = await supabase.from("experiences").upsert([experience]);
+      if (error) console.error("Supabase experience upsert warning:", error);
+    }
+  } catch (err) {
+    console.error("Supabase experience upsert notice:", err);
   }
 }
 
@@ -369,37 +412,47 @@ const INITIAL_MESSAGES: ContactMessage[] = [
 ];
 
 export async function fetchContactMessages(): Promise<ContactMessage[]> {
-  let messages: ContactMessage[] = [];
+  let cachedMessages: ContactMessage[] = [];
+  let dbMessages: ContactMessage[] = [];
+
+  if (typeof window !== "undefined") {
+    const raw = localStorage.getItem(MESSAGES_KEY);
+    if (raw) {
+      try {
+        cachedMessages = JSON.parse(raw);
+      } catch (e) {}
+    }
+  }
 
   try {
     const supabase = createClient();
     if (supabase) {
       const { data, error } = await supabase.from("contacts").select("*").order("created_at", { ascending: false });
       if (!error && data && data.length > 0) {
-        messages = data as ContactMessage[];
-        if (typeof window !== "undefined") {
-          localStorage.setItem(MESSAGES_KEY, JSON.stringify(messages));
-        }
+        dbMessages = data as ContactMessage[];
       }
     }
   } catch (err) {
     console.error("Supabase messages fetch notice:", err);
   }
 
-  if (messages.length === 0 && typeof window !== "undefined") {
-    const cached = localStorage.getItem(MESSAGES_KEY);
-    if (cached) {
-      try {
-        messages = JSON.parse(cached);
-      } catch (e) {}
-    }
+  let merged: ContactMessage[] = [];
+  if (dbMessages.length > 0) {
+    const map = new Map<string, ContactMessage>();
+    dbMessages.forEach((m) => { if (m.id) map.set(m.id, m); });
+    cachedMessages.forEach((m) => { if (m.id) map.set(m.id, m); });
+    merged = Array.from(map.values());
+  } else if (cachedMessages.length > 0) {
+    merged = cachedMessages;
+  } else {
+    merged = INITIAL_MESSAGES;
   }
 
-  if (messages.length === 0) {
-    messages = INITIAL_MESSAGES;
+  if (typeof window !== "undefined") {
+    localStorage.setItem(MESSAGES_KEY, JSON.stringify(merged));
   }
 
-  return messages;
+  return merged;
 }
 
 export async function saveContactMessage(msg: {
@@ -417,7 +470,13 @@ export async function saveContactMessage(msg: {
     created_at: new Date().toLocaleString(),
   };
 
-  // 1. Supabase Cloud Insert (Global multi-browser sync)
+  if (typeof window !== "undefined") {
+    const cached = localStorage.getItem(MESSAGES_KEY);
+    let list: ContactMessage[] = cached ? JSON.parse(cached) : INITIAL_MESSAGES;
+    list = [newMsg, ...list];
+    localStorage.setItem(MESSAGES_KEY, JSON.stringify(list));
+  }
+
   try {
     const supabase = createClient();
     if (supabase) {
@@ -433,27 +492,10 @@ export async function saveContactMessage(msg: {
   } catch (err) {
     console.error("Supabase message insert notice:", err);
   }
-
-  // 2. Save to local storage cache
-  if (typeof window !== "undefined") {
-    const cached = localStorage.getItem(MESSAGES_KEY);
-    let list: ContactMessage[] = cached ? JSON.parse(cached) : INITIAL_MESSAGES;
-    list = [newMsg, ...list];
-    localStorage.setItem(MESSAGES_KEY, JSON.stringify(list));
-  }
 }
 
 export async function removeContactMessageFromDB(id?: string): Promise<void> {
   if (!id) return;
-
-  try {
-    const supabase = createClient();
-    if (supabase) {
-      await supabase.from("contacts").delete().eq("id", id);
-    }
-  } catch (err) {
-    console.error("Supabase message delete notice:", err);
-  }
 
   if (typeof window !== "undefined") {
     const cached = localStorage.getItem(MESSAGES_KEY);
@@ -464,5 +506,14 @@ export async function removeContactMessageFromDB(id?: string): Promise<void> {
         localStorage.setItem(MESSAGES_KEY, JSON.stringify(updated));
       } catch (e) {}
     }
+  }
+
+  try {
+    const supabase = createClient();
+    if (supabase) {
+      await supabase.from("contacts").delete().eq("id", id);
+    }
+  } catch (err) {
+    console.error("Supabase message delete notice:", err);
   }
 }
