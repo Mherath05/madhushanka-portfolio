@@ -217,11 +217,28 @@ export async function removeProjectFromDB(id: string): Promise<void> {
 }
 
 export async function upsertProjectToDB(project: Project): Promise<void> {
+  const payload = {
+    id: project.id,
+    title: project.title,
+    category: project.category,
+    description: project.description,
+    technologies: project.technologies || [],
+    live_url: project.live_url || null,
+    github_url: project.github_url || null,
+    youtube_url: project.youtube_url || null,
+    is_featured: Boolean(project.is_featured),
+    images: project.images || [],
+    updated_at: new Date().toISOString(),
+  };
+
   // 1. Supabase Cloud Upsert (Global multi-browser sync)
   try {
     const supabase = createClient();
     if (supabase) {
-      await supabase.from("projects").upsert([project]);
+      const { error } = await supabase.from("projects").upsert([payload]);
+      if (error) {
+        console.error("Supabase project upsert error:", error);
+      }
     }
   } catch (err) {
     console.error("Supabase project upsert notice:", err);
@@ -233,7 +250,7 @@ export async function upsertProjectToDB(project: Project): Promise<void> {
     let list: Project[] = cached ? JSON.parse(cached) : INITIAL_PROJECTS;
     const index = list.findIndex((p) => p.id === project.id);
     if (index >= 0) {
-      list[index] = project;
+      list[index] = { ...list[index], ...project };
     } else {
       list.unshift(project);
     }
