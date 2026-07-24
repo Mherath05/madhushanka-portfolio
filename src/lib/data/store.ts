@@ -275,7 +275,6 @@ export async function upsertProjectToDB(project: Project): Promise<void> {
     youtube_url: project.youtube_url || null,
     is_featured: Boolean(project.is_featured),
     images: project.images || [],
-    updated_at: new Date().toISOString(),
   };
 
   try {
