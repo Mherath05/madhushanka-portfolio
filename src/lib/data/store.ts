@@ -141,7 +141,23 @@ export async function fetchProjects(): Promise<Project[]> {
     if (supabase) {
       const { data, error } = await supabase.from("projects").select("*").order("created_at", { ascending: false });
       if (!error && data && data.length > 0) {
-        projects = data as Project[];
+        projects = (data as Project[]).map((p) => {
+          const initialMatch = INITIAL_PROJECTS.find(
+            (ip) => ip.id === p.id || ip.title.toLowerCase() === p.title.toLowerCase()
+          );
+          const validImages =
+            p.images && Array.isArray(p.images) && p.images.length > 0
+              ? p.images
+              : initialMatch?.images && initialMatch.images.length > 0
+              ? initialMatch.images
+              : ["https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&w=1200&q=80"];
+
+          return {
+            ...p,
+            images: validImages,
+          };
+        });
+
         if (typeof window !== "undefined") {
           localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects));
         }
