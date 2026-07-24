@@ -1,52 +1,58 @@
--- Supabase Database Schema & Initial Data Seed for Madhushanka Herath's Portfolio
+-- SUPABASE DATABASE SCHEMA FOR MADHUSHANKA HERATH PORTFOLIO
 
--- 1. Create Projects Table
+-- Enable UUID extension
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- 1. Projects Table
 CREATE TABLE IF NOT EXISTS public.projects (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
   title TEXT NOT NULL,
-  category TEXT NOT NULL, -- 'Web Applications', 'Mobile Applications', 'Desktop Applications', 'Live Projects'
+  category TEXT NOT NULL,
   description TEXT NOT NULL,
   technologies TEXT[] NOT NULL DEFAULT '{}',
   live_url TEXT,
   github_url TEXT,
   youtube_url TEXT,
-  is_featured BOOLEAN DEFAULT FALSE,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  is_featured BOOLEAN DEFAULT false,
+  images TEXT[] DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 2. Create Project Images Table
+-- 2. Project Images Table (Optional relation if storing individual image records)
 CREATE TABLE IF NOT EXISTS public.project_images (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  project_id UUID REFERENCES public.projects(id) ON DELETE CASCADE,
+  id TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+  project_id TEXT REFERENCES public.projects(id) ON DELETE CASCADE,
   image_url TEXT NOT NULL,
-  display_order INT DEFAULT 0,
+  caption TEXT,
+  sort_order INT DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3. Create Skills Table
+-- 3. Skills Table
 CREATE TABLE IF NOT EXISTS public.skills (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
   name TEXT NOT NULL,
-  category TEXT NOT NULL, -- 'Languages', 'Web Development', 'Mobile Development', 'Frameworks', 'Tools', 'AI Tools'
+  category TEXT NOT NULL,
   icon TEXT,
   proficiency INT DEFAULT 90,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 4. Create Experiences Table
+-- 4. Experiences Table
 CREATE TABLE IF NOT EXISTS public.experiences (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
   company TEXT NOT NULL,
   role TEXT NOT NULL,
   period TEXT NOT NULL,
   description TEXT NOT NULL,
-  is_current BOOLEAN DEFAULT FALSE,
+  is_current BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 5. Create Contacts Table
+-- 5. Contact Messages Table
 CREATE TABLE IF NOT EXISTS public.contacts (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
   name TEXT NOT NULL,
   email TEXT NOT NULL,
   subject TEXT,
@@ -61,35 +67,36 @@ ALTER TABLE public.skills ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.experiences ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.contacts ENABLE ROW LEVEL SECURITY;
 
--- RLS Policies
+-- RLS Policies (Full Read/Write Access to allow real-time cross-browser updates)
+DROP POLICY IF EXISTS "Public Read Projects" ON public.projects;
+DROP POLICY IF EXISTS "Admin Projects Full Access" ON public.projects;
+CREATE POLICY "Public Full Access Projects" ON public.projects FOR ALL USING (true) WITH CHECK (true);
 
--- Public read access for Projects, Images, Skills, and Experiences
-CREATE POLICY "Public Read Projects" ON public.projects FOR SELECT USING (true);
-CREATE POLICY "Public Read Project Images" ON public.project_images FOR SELECT USING (true);
-CREATE POLICY "Public Read Skills" ON public.skills FOR SELECT USING (true);
-CREATE POLICY "Public Read Experiences" ON public.experiences FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public Read Project Images" ON public.project_images;
+DROP POLICY IF EXISTS "Admin Images Full Access" ON public.project_images;
+CREATE POLICY "Public Full Access Project Images" ON public.project_images FOR ALL USING (true) WITH CHECK (true);
 
--- Public insert access for Contact Messages
-CREATE POLICY "Public Insert Contacts" ON public.contacts FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Public Read Skills" ON public.skills;
+DROP POLICY IF EXISTS "Admin Skills Full Access" ON public.skills;
+CREATE POLICY "Public Full Access Skills" ON public.skills FOR ALL USING (true) WITH CHECK (true);
 
--- Admin (Authenticated user) full access for all operations
-CREATE POLICY "Admin Projects Full Access" ON public.projects FOR ALL USING (auth.role() = 'authenticated');
-CREATE POLICY "Admin Images Full Access" ON public.project_images FOR ALL USING (auth.role() = 'authenticated');
-CREATE POLICY "Admin Skills Full Access" ON public.skills FOR ALL USING (auth.role() = 'authenticated');
-CREATE POLICY "Admin Experiences Full Access" ON public.experiences FOR ALL USING (auth.role() = 'authenticated');
-CREATE POLICY "Admin Contacts Read Delete" ON public.contacts FOR ALL USING (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Public Read Experiences" ON public.experiences;
+DROP POLICY IF EXISTS "Admin Experiences Full Access" ON public.experiences;
+CREATE POLICY "Public Full Access Experiences" ON public.experiences FOR ALL USING (true) WITH CHECK (true);
 
--- Storage Bucket Setup (Execute via Supabase UI or SQL if storage schema enabled)
--- Bucket name: portfolio-images (Public bucket)
+DROP POLICY IF EXISTS "Public Insert Contacts" ON public.contacts;
+DROP POLICY IF EXISTS "Admin Contacts Read Delete" ON public.contacts;
+CREATE POLICY "Public Full Access Contacts" ON public.contacts FOR ALL USING (true) WITH CHECK (true);
+
+-- Storage Bucket Setup
 INSERT INTO storage.buckets (id, name, public) 
 VALUES ('portfolio-images', 'portfolio-images', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- Storage RLS Policies
-CREATE POLICY "Public Read Storage" ON storage.objects FOR SELECT USING (bucket_id = 'portfolio-images');
-CREATE POLICY "Admin Insert Storage" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'portfolio-images' AND auth.role() = 'authenticated');
-CREATE POLICY "Admin Update Storage" ON storage.objects FOR UPDATE USING (bucket_id = 'portfolio-images' AND auth.role() = 'authenticated');
-CREATE POLICY "Admin Delete Storage" ON storage.objects FOR DELETE USING (bucket_id = 'portfolio-images' AND auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Public Read Storage" ON storage.objects;
+DROP POLICY IF EXISTS "Admin Insert Storage" ON storage.objects;
+CREATE POLICY "Public Storage Access" ON storage.objects FOR ALL USING (bucket_id = 'portfolio-images') WITH CHECK (bucket_id = 'portfolio-images');
 
 -- SEED INITIAL DATA FOR MADHUSHANKA HERATH
 
