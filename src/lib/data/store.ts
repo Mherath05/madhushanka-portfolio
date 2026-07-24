@@ -61,12 +61,16 @@ export async function fetchSkills(): Promise<Skill[]> {
     console.error("Supabase skills fetch notice:", err);
   }
 
-  // Merge logic: start with dbSkills, overlay cached edits/additions
+  // Merge: Supabase DB is the source of truth
   let merged: Skill[] = [];
   if (dbSkills.length > 0) {
+    const dbIds = new Set(dbSkills.map((s) => s.id));
     const map = new Map<string, Skill>();
     dbSkills.forEach((s) => map.set(s.id, s));
-    cachedSkills.forEach((s) => map.set(s.id, s)); // Local edits take priority
+    // Only add cached skills that don't exist in DB (locally-added new skills)
+    cachedSkills.forEach((s) => {
+      if (!dbIds.has(s.id)) map.set(s.id, s);
+    });
     merged = Array.from(map.values());
   } else if (cachedSkills.length > 0) {
     merged = cachedSkills;
@@ -153,7 +157,7 @@ export async function fetchProjects(): Promise<Project[]> {
     }
   }
 
-  // 2. Fetch live data from Supabase DB
+  // 2. Fetch live data from Supabase DB (this is the SINGLE SOURCE OF TRUTH)
   try {
     const supabase = createClient();
     if (supabase) {
@@ -166,20 +170,17 @@ export async function fetchProjects(): Promise<Project[]> {
     console.error("Supabase projects fetch notice:", err);
   }
 
-  // 3. Intelligent Merge Algorithm
+  // 3. Merge: Supabase DB is the source of truth
   let finalProjects: Project[] = [];
 
   if (dbProjects.length > 0) {
-    // Map DB projects & preserve user images from cache if DB image array was empty
+    // DB projects take absolute priority — fill in fallback images only when DB has none
     const dbMapped = dbProjects.map((p) => {
-      const cachedMatch = cachedProjects.find((cp) => cp.id === p.id || cp.title.toLowerCase() === p.title.toLowerCase());
-      const initialMatch = INITIAL_PROJECTS.find((ip) => ip.id === p.id || ip.title.toLowerCase() === p.title.toLowerCase());
+      const initialMatch = INITIAL_PROJECTS.find((ip) => ip.title.toLowerCase() === p.title.toLowerCase());
 
       const validImages =
         p.images && Array.isArray(p.images) && p.images.length > 0
           ? p.images
-          : cachedMatch?.images && cachedMatch.images.length > 0
-          ? cachedMatch.images
           : initialMatch?.images && initialMatch.images.length > 0
           ? initialMatch.images
           : ["https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&w=1200&q=80"];
@@ -190,15 +191,15 @@ export async function fetchProjects(): Promise<Project[]> {
       };
     });
 
+    const dbIds = new Set(dbMapped.map((p) => p.id));
     const map = new Map<string, Project>();
-    // First insert dbMapped
+
+    // Insert all DB projects first (these are authoritative)
     dbMapped.forEach((p) => map.set(p.id, p));
-    // Overlay local additions/edits from cachedProjects (so locally added/edited projects never vanish)
+
+    // Only add cached projects that are NOT in the database (locally-added new projects)
     cachedProjects.forEach((cp) => {
-      const existing = map.get(cp.id);
-      if (existing) {
-        map.set(cp.id, { ...existing, ...cp });
-      } else {
+      if (!dbIds.has(cp.id)) {
         map.set(cp.id, cp);
       }
     });
@@ -319,9 +320,13 @@ export async function fetchExperiences(): Promise<Experience[]> {
 
   let merged: Experience[] = [];
   if (dbExps.length > 0) {
+    const dbIds = new Set(dbExps.map((ex) => ex.id));
     const map = new Map<string, Experience>();
     dbExps.forEach((ex) => map.set(ex.id, ex));
-    cachedExps.forEach((ex) => map.set(ex.id, ex));
+    // Only add cached experiences that don't exist in DB (locally-added new experiences)
+    cachedExps.forEach((ex) => {
+      if (!dbIds.has(ex.id)) map.set(ex.id, ex);
+    });
     merged = Array.from(map.values());
   } else if (cachedExps.length > 0) {
     merged = cachedExps;
@@ -437,9 +442,11 @@ export async function fetchContactMessages(): Promise<ContactMessage[]> {
 
   let merged: ContactMessage[] = [];
   if (dbMessages.length > 0) {
+    const dbIds = new Set(dbMessages.map((m) => m.id).filter(Boolean));
     const map = new Map<string, ContactMessage>();
     dbMessages.forEach((m) => { if (m.id) map.set(m.id, m); });
-    cachedMessages.forEach((m) => { if (m.id) map.set(m.id, m); });
+    // Only add cached messages not in DB (locally-added)
+    cachedMessages.forEach((m) => { if (m.id && !dbIds.has(m.id)) map.set(m.id, m); });
     merged = Array.from(map.values());
   } else if (cachedMessages.length > 0) {
     merged = cachedMessages;
